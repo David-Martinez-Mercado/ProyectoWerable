@@ -32,6 +32,36 @@ if ($selectedDevice) {
     <link rel="stylesheet" href="assets/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
+<script>
+    // Tema oscuro
+    function toggleTheme() {
+        document.body.classList.toggle('dark-theme');
+        const isDark = document.body.classList.contains('dark-theme');
+        localStorage.setItem('darkTheme', isDark);
+        
+        // Cambiar icono
+        const icon = document.querySelector('.theme-toggle i');
+        if (icon) {
+            if (isDark) {
+                icon.className = 'fas fa-sun';
+            } else {
+                icon.className = 'fas fa-moon';
+            }
+        }
+    }
+
+    // Cargar tema al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedTheme = localStorage.getItem('darkTheme');
+        if (savedTheme === 'true') {
+            document.body.classList.add('dark-theme');
+            const icon = document.querySelector('.theme-toggle i');
+            if (icon) icon.className = 'fas fa-sun';
+        }
+    });
+</script>
+</body>
+</html>
 <body>
     <div class="dashboard-container">
         <!-- Header -->
@@ -39,9 +69,11 @@ if ($selectedDevice) {
             <div class="header-content">
                 <h1><i class="fas fa-heartbeat"></i> Historial y Descargas</h1>
                 <div class="user-menu">
+                    <button class="theme-toggle" onclick="toggleTheme()">
+                        <i class="fas fa-moon"></i>
+                    </button>
                     <span>Bienvenido, <?php echo $_SESSION['user_name']; ?></span>
-                    <a href="api/auth.php?action=logout" class="btn-logout">Cerrar Sesión</a>
-                </div>
+                    <a href="logout.php" class="btn-logout">Cerrar Sesión</a>
             </div>
         </header>
 

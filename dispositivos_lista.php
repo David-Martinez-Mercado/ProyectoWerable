@@ -50,7 +50,7 @@ unset($device);
                         <i class="fas fa-moon"></i>
                     </button>
                     <span>Bienvenido, <?php echo $_SESSION['user_name']; ?></span>
-                    <a href="api/auth.php?action=logout" class="btn-logout">Cerrar Sesión</a>
+                    <a href="logout.php" class="btn-logout">Cerrar Sesión</a>
                 </div>
             </div>
         </header>

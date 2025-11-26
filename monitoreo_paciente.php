@@ -21,9 +21,38 @@ $device = $deviceCode ? $deviceModel->getDevice($deviceCode, $_SESSION['user_id'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoreo en Tiempo Real - Sistema de Monitoreo</title>
     <link rel="stylesheet" href="assets/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
+<script>
+    // Tema oscuro
+    function toggleTheme() {
+        document.body.classList.toggle('dark-theme');
+        const isDark = document.body.classList.contains('dark-theme');
+        localStorage.setItem('darkTheme', isDark);
+        
+        // Cambiar icono
+        const icon = document.querySelector('.theme-toggle i');
+        if (icon) {
+            if (isDark) {
+                icon.className = 'fas fa-sun';
+            } else {
+                icon.className = 'fas fa-moon';
+            }
+        }
+    }
+
+    // Cargar tema al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedTheme = localStorage.getItem('darkTheme');
+        if (savedTheme === 'true') {
+            document.body.classList.add('dark-theme');
+            const icon = document.querySelector('.theme-toggle i');
+            if (icon) icon.className = 'fas fa-sun';
+        }
+    });
+</script>
+</body>
+</html>
 <body>
     <div class="dashboard-container">
         <!-- Header -->
@@ -31,9 +60,11 @@ $device = $deviceCode ? $deviceModel->getDevice($deviceCode, $_SESSION['user_id'
             <div class="header-content">
                 <h1><i class="fas fa-heartbeat"></i> Monitoreo en Tiempo Real</h1>
                 <div class="user-menu">
+                    <button class="theme-toggle" onclick="toggleTheme()">
+                        <i class="fas fa-moon"></i>
+                    </button>
                     <span>Bienvenido, <?php echo $_SESSION['user_name']; ?></span>
-                    <a href="api/auth.php?action=logout" class="btn-logout">Cerrar Sesión</a>
-                </div>
+                    <a href="logout.php" class="btn-logout">Cerrar Sesión</a>
             </div>
         </header>
 
