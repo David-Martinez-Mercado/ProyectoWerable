@@ -1,0 +1,35 @@
+{
+    "system": {
+        "name": "Sistema de Monitoreo de Signos Vitales",
+        "version": "1.0.0",
+        "environment": "production"
+    },
+    "database": {
+        "private_db": "vital_monitor_private",
+        "public_db": "vital_monitor_public"
+    },
+    "api": {
+        "esp32_key": "TU_API_KEY_SECRETA_ESP32",
+        "update_interval": 5000,
+        "max_retries": 3
+    },
+    "alerts": {
+        "thresholds": {
+            "heart_rate": { "min": 60, "max": 100 },
+            "spO2": { "min": 90 },
+            "temperature": { "min": 35.5, "max": 37.5 }
+        },
+        "emergency_services": {
+            "medical": "911",
+            "missing_person": "089"
+        }
+    },
+    "maps": {
+        "api_key": "TU_API_KEY_GOOGLE_MAPS",
+        "default_zoom": 15,
+        "default_center": {
+            "lat": 19.4326,
+            "lng": -99.1332
+        }
+    }
+}

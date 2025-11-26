@@ -1,0 +1,23 @@
+RewriteEngine On
+
+# Redireccionar a HTTPS (opcional)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Reglas para APIs
+RewriteRule ^api/([^/]+)/([^/]+)/?$ api/$1.php?action=$2 [QSA,L]
+RewriteRule ^api/([^/]+)/?$ api/$1.php [QSA,L]
+
+# Prevenir acceso directo a archivos sensibles
+<Files ~ "\.(env|log|sql)$">
+    Deny from all
+</Files>
+
+<Files "config/connection.php">
+    Deny from all
+</Files>
+
+# Headers de seguridad
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
