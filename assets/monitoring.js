@@ -248,12 +248,22 @@ async function updateChartData() {
 }
 
 // Actualizar alertas
+
 async function updateAlerts() {
-    const response = await fetch(`api/alerts.php?device=${currentDevice}&status=true`);
-    const data = await response.json();
-    
-    if (data.success) {
-        displayAlerts(data.activeAlerts);
+    try {
+        const response = await fetch(`api/alerts.php?device=${currentDevice}&status=true`);
+        
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayAlerts(data.activeAlerts);
+        }
+    } catch (error) {
+        console.error('Error al cargar alertas:', error);
     }
 }
 
@@ -364,15 +374,27 @@ function displayAlerts(alerts) {
 }
 
 // Funciones de alertas
+// Funciones de alertas CORREGIDAS
 async function triggerMedicalAlert() {
     if (!confirm('¿Estás seguro de activar la alerta médica de emergencia? Se notificará a los servicios de emergencia.')) {
         return;
     }
     
     try {
-        const response = await fetch(`api/alerts.php?action=medical&device=${currentDevice}`, {
-            method: 'POST'
+        // Usar FormData en lugar de JSON
+        const formData = new FormData();
+        formData.append('action', 'medical');
+        formData.append('device', currentDevice);
+        
+        const response = await fetch('api/alerts.php', {
+            method: 'POST',
+            body: formData
         });
+        
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -382,7 +404,8 @@ async function triggerMedicalAlert() {
             showAlert('Error al activar alerta: ' + data.message, 'error');
         }
     } catch (error) {
-        showAlert('Error de conexión', 'error');
+        console.error('Error en alerta médica:', error);
+        showAlert('Error de conexión: ' + error.message, 'error');
     }
 }
 
@@ -392,9 +415,20 @@ async function triggerMissingAlert() {
     }
     
     try {
-        const response = await fetch(`api/alerts.php?action=missing&device=${currentDevice}`, {
-            method: 'POST'
+        // Usar FormData en lugar de JSON
+        const formData = new FormData();
+        formData.append('action', 'missing');
+        formData.append('device', currentDevice);
+        
+        const response = await fetch('api/alerts.php', {
+            method: 'POST',
+            body: formData
         });
+        
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success) {
@@ -404,10 +438,10 @@ async function triggerMissingAlert() {
             showAlert('Error al activar alerta: ' + data.message, 'error');
         }
     } catch (error) {
-        showAlert('Error de conexión', 'error');
+        console.error('Error en alerta de extravío:', error);
+        showAlert('Error de conexión: ' + error.message, 'error');
     }
 }
-
 // Utilidades
 function showAlert(message, type) {
     const alertDiv = document.createElement('div');

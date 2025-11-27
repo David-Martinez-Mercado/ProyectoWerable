@@ -16,9 +16,6 @@ $method = $_SERVER['REQUEST_METHOD'];
 $alertModel = new AlertModel();
 $deviceModel = new DeviceModel();
 
-$action = $_GET['action'] ?? '';
-$deviceCode = $_GET['device'] ?? '';
-
 try {
     switch ($method) {
         case 'GET':
@@ -26,7 +23,7 @@ try {
             break;
             
         case 'POST':
-            handlePostAlert($alertModel, $deviceModel, $_SESSION['user_id'], $action, $deviceCode);
+            handlePostAlert($alertModel, $deviceModel, $_SESSION['user_id']);
             break;
             
         case 'PUT':
@@ -51,19 +48,18 @@ function handleGetAlerts($alertModel, $userId) {
         return;
     }
     
-    if (isset($_GET['history']) && $_GET['history'] === 'true') {
-        echo json_encode(['success' => true, 'history' => []]);
-        return;
-    }
-    
     $activeAlerts = $alertModel->getActiveAlerts($userId);
     echo json_encode(['success' => true, 'activeAlerts' => $activeAlerts]);
 }
 
-function handlePostAlert($alertModel, $deviceModel, $userId, $action, $deviceCode) {
-    if (empty($deviceCode)) {
+function handlePostAlert($alertModel, $deviceModel, $userId) {
+    // Obtener datos de POST
+    $action = $_POST['action'] ?? '';
+    $deviceCode = $_POST['device'] ?? '';
+    
+    if (empty($deviceCode) || empty($action)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Código de dispositivo requerido']);
+        echo json_encode(['success' => false, 'message' => 'Datos incompletos']);
         return;
     }
     
@@ -143,4 +139,4 @@ function handlePutAlert($alertModel) {
         'message' => 'Estado de alerta actualizado'
     ]);
 }
-?>  
+?>

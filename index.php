@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar Sesión - Sistema de Monitoreo</title>
+    <title>Iniciar Sesión - Sistema Guardián</title>
     <link rel="stylesheet" href="assets/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="login-card">
             <div class="login-header">
                 <i class="fas fa-heartbeat"></i>
-                <h1>Sistema de Monitoreo</h1>
+                <h1>Sistema Guardián</h1>
                 <p>Inicia sesión en tu cuenta</p>
             </div>
             
