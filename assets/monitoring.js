@@ -1,3 +1,40 @@
+// ==== FUNCIÓN showAlert AGREGADA ====
+if (typeof showAlert === 'undefined') {
+    function showAlert(message, type) {
+        // Crear elemento de alerta bonito
+        const alertDiv = document.createElement('div');
+        alertDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            color: white;
+            z-index: 10000;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-family: Arial, sans-serif;
+            ${type === 'success' ? 'background: #28a745;' : ''}
+            ${type === 'error' ? 'background: #dc3545;' : ''}
+            ${type === 'warning' ? 'background: #ffc107; color: black;' : ''}
+        `;
+        alertDiv.innerHTML = `
+            <strong>${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</strong>
+            ${message}
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // Auto-remover después de 5 segundos
+        setTimeout(() => {
+            if (alertDiv.parentElement) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+}
+// ==== FIN DE showAlert ====
+
 // Configuración global
 const config = {
     updateInterval: 5000, // 5 segundos
@@ -247,10 +284,11 @@ async function updateChartData() {
     }
 }
 
-// Actualizar alertas
-
+// Actualizar alertas - Versión mejorada
 async function updateAlerts() {
     try {
+        console.log('Actualizando alertas...');
+        
         const response = await fetch(`api/alerts.php?device=${currentDevice}&status=true`);
         
         if (!response.ok) {
@@ -258,12 +296,16 @@ async function updateAlerts() {
         }
         
         const data = await response.json();
+        console.log('Alertas recibidas:', data);
         
         if (data.success) {
-            displayAlerts(data.activeAlerts);
+            displayAlerts(data.activeAlerts || []);
+        } else {
+            console.warn('Error en respuesta de alertas:', data.message);
         }
     } catch (error) {
         console.error('Error al cargar alertas:', error);
+        // No mostrar error al usuario para no ser intrusivo
     }
 }
 
@@ -343,12 +385,17 @@ function updateLocation(lat, lng, timestamp) {
         `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
-// Mostrar alertas
+// Mostrar alertas - Versión mejorada
 function displayAlerts(alerts) {
     const container = document.getElementById('liveAlerts');
     
+    if (!container) {
+        console.error('Contenedor de alertas no encontrado');
+        return;
+    }
+    
     if (!alerts || alerts.length === 0) {
-        container.innerHTML = '';
+        container.innerHTML = '<div class="alert info">No hay alertas activas</div>';
         return;
     }
     
@@ -362,9 +409,9 @@ function displayAlerts(alerts) {
             <div class="alert-item ${alertType} fade-in">
                 <div class="alert-header">
                     <strong><i class="fas ${icon}"></i> ${title}</strong>
-                    <span class="alert-status">${alert.estado}</span>
+                    <span class="alert-status">${alert.estado || 'PENDIENTE'}</span>
                 </div>
-                <p>${alert.descripcion}</p>
+                <p>${alert.descripcion || 'Alerta activada'}</p>
                 <small>Iniciada: ${new Date(alert.fecha_creacion).toLocaleString()}</small>
             </div>
         `;
@@ -373,38 +420,30 @@ function displayAlerts(alerts) {
     container.innerHTML = html;
 }
 
-// Funciones de alertas
-// Funciones de alertas CORREGIDAS
+// Usar la API que guarda en BD
 async function triggerMedicalAlert() {
     if (!confirm('¿Estás seguro de activar la alerta médica de emergencia? Se notificará a los servicios de emergencia.')) {
         return;
     }
     
     try {
-        // Usar FormData en lugar de JSON
-        const formData = new FormData();
-        formData.append('action', 'medical');
-        formData.append('device', currentDevice);
-        
-        const response = await fetch('api/alerts.php', {
+        const response = await fetch('api/alerts_working.php', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'action=medical&device=' + currentDevice
         });
-        
-        if (!response.ok) {
-            throw new Error(`Error HTTP: ${response.status}`);
-        }
         
         const data = await response.json();
         
         if (data.success) {
-            showAlert('Alerta médica activada. Ayuda en camino.', 'success');
-            updateAlerts();
+            showAlert(data.message, 'success');
+            setTimeout(updateAlerts, 1000);
         } else {
-            showAlert('Error al activar alerta: ' + data.message, 'error');
+            showAlert('Error: ' + data.message, 'error');
         }
     } catch (error) {
-        console.error('Error en alerta médica:', error);
         showAlert('Error de conexión: ' + error.message, 'error');
     }
 }
@@ -415,55 +454,49 @@ async function triggerMissingAlert() {
     }
     
     try {
-        // Usar FormData en lugar de JSON
-        const formData = new FormData();
-        formData.append('action', 'missing');
-        formData.append('device', currentDevice);
-        
-        const response = await fetch('api/alerts.php', {
+        const response = await fetch('api/alerts_working.php', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'action=missing&device=' + currentDevice
         });
-        
-        if (!response.ok) {
-            throw new Error(`Error HTTP: ${response.status}`);
-        }
         
         const data = await response.json();
         
         if (data.success) {
-            showAlert('Alerta de extravío activada. Buscando paciente.', 'success');
-            updateAlerts();
+            showAlert(data.message, 'success');
+            setTimeout(updateAlerts, 1000);
         } else {
-            showAlert('Error al activar alerta: ' + data.message, 'error');
+            showAlert('Error: ' + data.message, 'error');
         }
     } catch (error) {
-        console.error('Error en alerta de extravío:', error);
         showAlert('Error de conexión: ' + error.message, 'error');
     }
-}
-// Utilidades
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert ${type} fade-in`;
-    alertDiv.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
-        ${message}
-    `;
-    
-    // Insertar al inicio del main
-    const main = document.querySelector('.dashboard-main');
-    main.insertBefore(alertDiv, main.firstChild);
-    
-    // Auto-remover después de 5 segundos
-    setTimeout(() => {
-        alertDiv.remove();
-    }, 5000);
 }
 
 // Limpiar intervalo al salir de la página
 window.addEventListener('beforeunload', () => {
     if (updateInterval) {
         clearInterval(updateInterval);
+    }
+});
+
+// Debug: Verificar que las funciones estén disponibles
+console.log('✅ monitoring.js cargado');
+console.log('triggerMedicalAlert disponible:', typeof triggerMedicalAlert);
+console.log('triggerMissingAlert disponible:', typeof triggerMissingAlert);
+console.log('showAlert disponible:', typeof showAlert);
+console.log('currentDevice:', currentDevice);
+
+// Agregar event listeners para debug
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-emergency') || 
+        e.target.closest('.btn-emergency')) {
+        console.log('Click en botón de emergencia médica');
+    }
+    if (e.target.classList.contains('btn-warning') || 
+        e.target.closest('.btn-warning')) {
+        console.log('Click en botón de extravío');
     }
 });
