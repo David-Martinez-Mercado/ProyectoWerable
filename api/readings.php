@@ -1,7 +1,7 @@
 <?php
 session_start();
-require_once '../models/LecturaModel.php';
-require_once '../models/DeviceModel.php';
+require_once __DIR__ . '/../models/LecturaModel.php';
+require_once __DIR__ . '/../models/DeviceModel.php';
 
 header('Content-Type: application/json');
 
