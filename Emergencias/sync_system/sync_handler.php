@@ -47,4 +47,45 @@ switch ($accion) {
         echo "  php sync_handler.php batch\n";
         echo "  O por web: ?accion=enviar&id=123&token=TU_TOKEN_SECRETO\n";
 }
+// ... código existente ...
+
+switch ($accion) {
+    case 'enviar':
+        if ($id) {
+            $sincronizador->enviarAlertaC5($id);
+        } else {
+            echo "❌ Se requiere ID de alerta\n";
+        }
+        break;
+        
+    case 'actualizar':
+        if ($id) {
+            $sincronizador->actualizarEstadoDesdeC5($id);
+        } else {
+            echo "❌ Se requiere ID de alerta C5\n";
+        }
+        break;
+        
+    case 'batch':
+        $sincronizador->sincronizarPendientes();
+        break;
+        
+    case 'limpiar':  // 🔥 NUEVO: Comando para limpiar
+        $resultado = $sincronizador->limpiarYActualizarAlertas();
+        if ($resultado) {
+            echo "🎉 Limpieza completada:\n";
+            echo " - Alertas actualizadas: " . $resultado['actualizadas'] . "\n";
+            echo " - Alertas limpiadas: " . $resultado['limpiadas'] . "\n";
+        }
+        break;
+        
+    default:
+        echo "Sincronizador C5 - Sistema de Sincronización\n";
+        echo "=============================================\n";
+        echo "Uso:\n";
+        echo "  php sync_handler.php enviar [ID_ALERTA_PRIVADA]\n";
+        echo "  php sync_handler.php actualizar [ID_ALERTA_C5]\n"; 
+        echo "  php sync_handler.php batch\n";
+        echo "  php sync_handler.php limpiar\n";  // 🔥 NUEVO
+}
 ?>

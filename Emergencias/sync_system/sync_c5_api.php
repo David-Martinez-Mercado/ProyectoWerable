@@ -34,6 +34,7 @@ class SincronizadorC5 {
     // ENVIAR ALERTA DE PRIVADA → PÚBLICA
     public function enviarAlertaC5($idAlertaPrivada) {
         try {
+            usleep(500000); // 0.5 segundos
             // Obtener datos de log_alertas + paciente
             $stmt = $this->db_privada->prepare("
                 SELECT la.*, p.nombre_paciente, p.edad, p.enfermedades_cronicas, 
@@ -180,5 +181,92 @@ class SincronizadorC5 {
         ");
         $stmt->execute([$idAlerta, $accion, json_encode($datos)]);
     }
+    // LIMPIAR ALERTAS RESUELTAS/CANCELADAS Y ACTUALIZAR ESTADOS
+public function limpiarYActualizarAlertas() {
+    try {
+        echo "🔄 Limpiando y actualizando alertas...\n";
+        
+        // 1. Obtener alertas actualizadas de C5
+        $stmt = $this->db_publica->prepare("
+            SELECT id, id_alerta_privada, estado, tiempo_respuesta, unidades_asignadas,
+                   fecha_actualizacion, notas_actualizacion
+            FROM alertas_c5 
+            WHERE fecha_actualizacion > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            AND estado IN ('RESUELTA', 'CANCELADA')
+        ");
+        $stmt->execute();
+        $alertasActualizadas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo "📊 Alertas resueltas/canceladas en C5: " . count($alertasActualizadas) . "\n";
+        
+        $actualizadas = 0;
+        $limpiadas = 0;
+        
+        foreach ($alertasActualizadas as $alertaC5) {
+            // 2. Actualizar estado en base privada
+            $stmt = $this->db_privada->prepare("
+                UPDATE log_alertas 
+                SET estado = ?, 
+                    notas_c5 = ?,
+                    fecha_actualizacion = NOW()
+                WHERE id = ? AND estado != ?
+            ");
+            
+            $notas = "C5: " . ($alertaC5['notas_actualizacion'] ?: 'Sin notas') . 
+                     " | Tiempo: " . ($alertaC5['tiempo_respuesta'] ?: 'N/A') . "min" .
+                     " | Unidades: " . ($alertaC5['unidades_asignadas'] ?: 'Ninguna');
+            
+            $result = $stmt->execute([
+                $alertaC5['estado'],
+                $notas,
+                $alertaC5['id_alerta_privada'],
+                $alertaC5['estado']
+            ]);
+            
+            if ($result && $stmt->rowCount() > 0) {
+                $actualizadas++;
+                $this->logSincronizacion($alertaC5['id_alerta_privada'], 'ACTUALIZADO_DESDE_C5', $alertaC5);
+                
+                // 3. Opcional: Limpiar alerta de C5 después de actualizar
+                if ($this->limpiarAlertaC5($alertaC5['id'])) {
+                    $limpiadas++;
+                }
+            }
+        }
+        
+        echo "✅ Alertas actualizadas en privada: $actualizadas\n";
+        echo "🗑️  Alertas limpiadas de C5: $limpiadas\n";
+        
+        return [
+            'actualizadas' => $actualizadas,
+            'limpiadas' => $limpiadas
+        ];
+        
+    } catch (Exception $e) {
+        error_log("Error limpiando/actualizando alertas: " . $e->getMessage());
+        echo "❌ Error: " . $e->getMessage() . "\n";
+        return false;
+    }
 }
+
+// LIMPIAR ALERTA ESPECÍFICA DE C5 (mantener histórico si quieres)
+private function limpiarAlertaC5($idAlertaC5) {
+    try {
+        // Opción A: Eliminar completamente
+        $stmt = $this->db_publica->prepare("DELETE FROM alertas_c5 WHERE id = ?");
+        $result = $stmt->execute([$idAlertaC5]);
+        
+        // Opción B: O marcar como archivada (recomendado para histórico)
+        // $stmt = $this->db_publica->prepare("UPDATE alertas_c5 SET archivada = 1 WHERE id = ?");
+        // $result = $stmt->execute([$idAlertaC5]);
+        
+        return $result;
+        
+    } catch (Exception $e) {
+        error_log("Error limpiando alerta C5 $idAlertaC5: " . $e->getMessage());
+        return false;
+    }
+}
+}
+
 ?>

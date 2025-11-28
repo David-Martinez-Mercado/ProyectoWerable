@@ -427,7 +427,7 @@ async function triggerMedicalAlert() {
     }
     
     try {
-        const response = await fetch('api/alerts_working.php', {
+        const response = await fetch('api/alerts_simple.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -438,7 +438,12 @@ async function triggerMedicalAlert() {
         const data = await response.json();
         
         if (data.success) {
-            showAlert(data.message, 'success');
+            // Determinar tipo de mensaje basado en sync_status
+            const alertType = data.sync_status === 'success' ? 'success' : 
+                             data.sync_status === 'warning' ? 'warning' : 'success';
+            
+            showAlert(data.message, alertType);
+            console.log('Sincronización:', data.sync_status, data.sync_message);
             setTimeout(updateAlerts, 1000);
         } else {
             showAlert('Error: ' + data.message, 'error');
@@ -454,7 +459,7 @@ async function triggerMissingAlert() {
     }
     
     try {
-        const response = await fetch('api/alerts_working.php', {
+        const response = await fetch('api/alerts_simple.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -465,7 +470,12 @@ async function triggerMissingAlert() {
         const data = await response.json();
         
         if (data.success) {
-            showAlert(data.message, 'success');
+            // Determinar tipo de mensaje basado en sync_status
+            const alertType = data.sync_status === 'success' ? 'success' : 
+                             data.sync_status === 'warning' ? 'warning' : 'success';
+            
+            showAlert(data.message, alertType);
+            console.log('Sincronización:', data.sync_status, data.sync_message);
             setTimeout(updateAlerts, 1000);
         } else {
             showAlert('Error: ' + data.message, 'error');
@@ -474,7 +484,6 @@ async function triggerMissingAlert() {
         showAlert('Error de conexión: ' + error.message, 'error');
     }
 }
-
 // Limpiar intervalo al salir de la página
 window.addEventListener('beforeunload', () => {
     if (updateInterval) {
