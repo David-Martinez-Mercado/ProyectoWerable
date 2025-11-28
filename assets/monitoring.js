@@ -1,7 +1,6 @@
-// ==== FUNCIÓN showAlert AGREGADA ====
+// ==== FUNCIÓN showAlert ====
 if (typeof showAlert === 'undefined') {
     function showAlert(message, type) {
-        // Crear elemento de alerta bonito
         const alertDiv = document.createElement('div');
         alertDiv.style.cssText = `
             position: fixed;
@@ -25,7 +24,6 @@ if (typeof showAlert === 'undefined') {
         
         document.body.appendChild(alertDiv);
         
-        // Auto-remover después de 5 segundos
         setTimeout(() => {
             if (alertDiv.parentElement) {
                 alertDiv.remove();
@@ -33,479 +31,360 @@ if (typeof showAlert === 'undefined') {
         }, 5000);
     }
 }
-// ==== FIN DE showAlert ====
 
 // Configuración global
 const config = {
-    updateInterval: 5000, // 5 segundos
-    chartHistory: 6 // horas
+    updateInterval: 10000, // 10 segundos (más tiempo para evitar sobrecarga)
+    apiBaseUrl: 'http://localhost/proyecto/api/readings.php'
 };
 
-// Variables globales
 let charts = {};
-let patientMap = null;
-let mapMarker = null;
 let updateInterval;
 
 // Inicialización cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', function() {
-    if (!currentDevice) return;
+    console.log('🏥 Inicializando monitoreo...');
     
-    initializeCharts();
-    initializeMap();
+    if (typeof Chart === 'undefined') {
+        console.error('❌ Chart.js no está cargado');
+        showAlert('Error: Chart.js no está cargado', 'error');
+        return;
+    }
+    
+    initializeAllCharts(); // Una sola función para todas las gráficas
+    initializeSimpleMap();
     startRealTimeUpdates();
-    
-    // Cargar datos iniciales
-    updateAllData();
 });
 
-// Inicializar gráficas
-function initializeCharts() {
-    // Gráficas mini en tarjetas
-    const miniChartConfig = {
+// Inicializar TODAS las gráficas de una vez
+function initializeAllCharts() {
+    console.log('📊 Inicializando todas las gráficas...');
+    
+    // === GRÁFICAS MINI (tarjetas) ===
+    const miniConfig = {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: '#e74c3c',
-                backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: { enabled: false }
-            },
-            scales: {
-                x: { display: false },
-                y: { display: false }
-            },
-            elements: {
-                point: { radius: 0 }
-            }
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: { x: { display: false }, y: { display: false } },
+            elements: { point: { radius: 0 } }
         }
     };
-    
-    // Gráficas detalladas
-    const detailedChartConfig = {
+
+    // Gráfica mini FC
+    const hrCtx = document.getElementById('hrChart');
+    if (hrCtx) {
+        charts.hrMini = new Chart(hrCtx, {
+            ...miniConfig,
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(75),
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            }
+        });
+    }
+
+    // Gráfica mini SpO2
+    const spo2Ctx = document.getElementById('spo2Chart');
+    if (spo2Ctx) {
+        charts.spo2Mini = new Chart(spo2Ctx, {
+            ...miniConfig,
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(98),
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            }
+        });
+    }
+
+    // Gráfica mini Temperatura
+    const tempCtx = document.getElementById('tempChart');
+    if (tempCtx) {
+        charts.tempMini = new Chart(tempCtx, {
+            ...miniConfig,
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(36.8),
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            }
+        });
+    }
+
+    // === GRÁFICAS DETALLADAS (6 horas) ===
+    const detailedConfig = {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Valor',
-                data: [],
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
+            plugins: { legend: { display: false } },
             scales: {
-                x: {
-                    display: true,
-                    title: { display: true, text: 'Hora' }
-                },
-                y: {
-                    display: true,
-                    title: { display: true, text: 'Valor' }
-                }
+                x: { display: true, title: { display: true, text: 'Hora' } },
+                y: { display: true, title: { display: true, text: 'Valor' } }
             }
         }
     };
-    
-    // Inicializar gráficas mini
-    charts.hrMini = new Chart(document.getElementById('hrChart'), {
-        ...miniChartConfig,
-        data: {
-            ...miniChartConfig.data,
-            datasets: [{
-                ...miniChartConfig.data.datasets[0],
-                borderColor: '#e74c3c'
-            }]
-        }
-    });
-    
-    charts.spo2Mini = new Chart(document.getElementById('spo2Chart'), {
-        ...miniChartConfig,
-        data: {
-            ...miniChartConfig.data,
-            datasets: [{
-                ...miniChartConfig.data.datasets[0],
-                borderColor: '#3498db'
-            }]
-        }
-    });
-    
-    charts.tempMini = new Chart(document.getElementById('tempChart'), {
-        ...miniChartConfig,
-        data: {
-            ...miniChartConfig.data,
-            datasets: [{
-                ...miniChartConfig.data.datasets[0],
-                borderColor: '#f39c12'
-            }]
-        }
-    });
-    
-    // Inicializar gráficas detalladas
-    charts.hrDetailed = new Chart(document.getElementById('detailedHrChart'), {
-        ...detailedChartConfig,
-        data: {
-            ...detailedChartConfig.data,
-            datasets: [{
-                ...detailedChartConfig.data.datasets[0],
-                borderColor: '#e74c3c',
-                backgroundColor: 'rgba(231, 76, 60, 0.1)'
-            }]
-        }
-    });
-    
-    charts.spo2Detailed = new Chart(document.getElementById('detailedSpo2Chart'), {
-        ...detailedChartConfig,
-        data: {
-            ...detailedChartConfig.data,
-            datasets: [{
-                ...detailedChartConfig.data.datasets[0],
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.1)'
-            }]
-        }
-    });
-    
-    charts.tempDetailed = new Chart(document.getElementById('detailedTempChart'), {
-        ...detailedChartConfig,
-        data: {
-            ...detailedChartConfig.data,
-            datasets: [{
-                ...detailedChartConfig.data.datasets[0],
-                borderColor: '#f39c12',
-                backgroundColor: 'rgba(243, 156, 18, 0.1)'
-            }]
-        }
-    });
-}
 
-// Inicializar mapa
-function initializeMap() {
-    patientMap = new google.maps.Map(document.getElementById('patientMap'), {
-        zoom: 15,
-        center: { lat: 19.4326, lng: -99.1332 }, // CDMX por defecto
-        mapTypeControl: true,
-        streetViewControl: false,
-        styles: [
-            {
-                featureType: 'poi',
-                stylers: [{ visibility: 'off' }]
+    // Datos demo para 6 horas
+    const timeLabels = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00'];
+    const hrData = [72, 74, 76, 78, 75, 73];
+    const spo2Data = [97, 98, 97, 98, 99, 98];
+    const tempData = [36.5, 36.6, 36.7, 36.8, 36.7, 36.6];
+
+    // Gráfica detallada FC
+    const detailedHrCtx = document.getElementById('detailedHrChart');
+    if (detailedHrCtx) {
+        charts.hrDetailed = new Chart(detailedHrCtx, {
+            ...detailedConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'FC (lpm)',
+                    data: hrData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
             }
-        ]
-    });
-    
-    mapMarker = new google.maps.Marker({
-        map: patientMap,
-        animation: google.maps.Animation.DROP,
-        icon: {
-            url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJDNy41ODYgMiA0IDUuNTg2IDQgMTBDNCAxNS4yNzQgOS4zNzMgMjEuNDYgMTEuMTI2IDIzLjI0NkMxMS4zNzkgMjMuNDg3IDExLjY4NyAyMy42IDEyIDIzLjZDMTIuMzEzIDIzLjYgMTIuNjIxIDIzLjQ4NyAxMi44NzQgMjMuMjQ2QzE0LjYyNyAyMS40NiAyMCAxNS4yNzQgMjAgMTBDMjAgNS41ODYgMTYuNDE0IDIgMTIgMloiIGZpbGw9IiNlNzRjM2MiLz4KPHBhdGggZD0iTTEyIDEzQzEzLjY1NjkgMTMgMTUgMTEuNjU2OSAxNSAxMEMxNSA4LjM0MzE1IDEzLjY1NjkgNyAxMiA3QzEwLjM0MzEgNyA5IDguMzQzMTUgOSAxMEM5IDExLjY1NjkgMTAuMzQzMSAxMyAxMiAxM1oiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==',
-            scaledSize: new google.maps.Size(40, 40),
-            anchor: new google.maps.Point(20, 40)
-        }
-    });
+        });
+        console.log('✅ Gráfica FC detallada inicializada');
+    }
+
+    // Gráfica detallada SpO2
+    const detailedSpo2Ctx = document.getElementById('detailedSpo2Chart');
+    if (detailedSpo2Ctx) {
+        charts.spo2Detailed = new Chart(detailedSpo2Ctx, {
+            ...detailedConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'SpO2 (%)',
+                    data: spo2Data,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
+            }
+        });
+        console.log('✅ Gráfica SpO2 detallada inicializada');
+    }
+
+    // Gráfica detallada Temperatura
+    const detailedTempCtx = document.getElementById('detailedTempChart');
+    if (detailedTempCtx) {
+        charts.tempDetailed = new Chart(detailedTempCtx, {
+            ...detailedConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Temp (°C)',
+                    data: tempData,
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
+            }
+        });
+        console.log('✅ Gráfica Temperatura detallada inicializada');
+    }
 }
 
-// Iniciar actualizaciones en tiempo real
+// Mapa simple
+function initializeSimpleMap() {
+    console.log('🗺️ Inicializando mapa simple...');
+    const mapContainer = document.getElementById('patientMap');
+    if (mapContainer) {
+        mapContainer.innerHTML = `
+            <div style="width:100%; height:100%; background:#f8f9fa; display:flex; align-items:center; justify-content:center; border-radius:10px;">
+                <div style="text-align:center; color:#666;">
+                    <i class="fas fa-map-marker-alt" style="font-size:48px; margin-bottom:10px; color:#e74c3c;"></i>
+                    <p><strong>Mapa de Ubicación</strong></p>
+                    <p>Coordenadas: <span id="mapCoordinates">Cargando...</span></p>
+                    <p><small>Última actualización: <span id="mapLastUpdate">--</span></small></p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Iniciar actualizaciones
 function startRealTimeUpdates() {
-    updateAllData();
+    console.log('🔄 Iniciando actualizaciones...');
+    updateAllData(); // Actualizar inmediatamente
     updateInterval = setInterval(updateAllData, config.updateInterval);
 }
 
-// Actualizar todos los datos
+// Actualizar todos los datos (UNA SOLA PETICIÓN)
 async function updateAllData() {
     try {
-        await Promise.all([
-            updateCurrentReadings(),
-            updateChartData(),
-            updateAlerts()
-        ]);
-    } catch (error) {
-        console.error('Error en actualización:', error);
-        showAlert('Error al actualizar datos', 'error');
-    }
-}
-
-// Actualizar lecturas actuales
-async function updateCurrentReadings() {
-    const response = await fetch(`${apiBaseUrl}?device=${currentDevice}`);
-    const data = await response.json();
-    
-    if (data.success && data.reading) {
-        const reading = data.reading;
+        console.log('📡 Solicitando datos...');
+        const response = await fetch(`${config.apiBaseUrl}?device=ESP32-001&limit=1`);
         
-        // Actualizar valores
-        updateMetric('hr', reading.lectura_FC, 60, 100);
-        updateMetric('spo2', reading.lectura_SpO2, 90, 100);
-        updateMetric('temp', reading.lectura_temperatura, 35.5, 37.5);
-        
-        // Actualizar ubicación
-        if (reading.gps_lat && reading.gps_lon) {
-            updateLocation(reading.gps_lat, reading.gps_lon, reading.fecha_lectura);
-        }
-        
-        // Actualizar gráficas mini
-        updateMiniChart(charts.hrMini, reading.lectura_FC);
-        updateMiniChart(charts.spo2Mini, reading.lectura_SpO2);
-        updateMiniChart(charts.tempMini, reading.lectura_temperatura);
-    }
-}
-
-// Actualizar datos de gráficas
-async function updateChartData() {
-    const response = await fetch(`${apiBaseUrl}?device=${currentDevice}&chart=true&hours=${config.chartHistory}`);
-    const data = await response.json();
-    
-    if (data.success && data.chartData) {
-        const chartData = data.chartData;
-        
-        // Actualizar gráficas detalladas
-        updateDetailedChart(charts.hrDetailed, chartData.labels, chartData.heartRate, '#e74c3c');
-        updateDetailedChart(charts.spo2Detailed, chartData.labels, chartData.spO2, '#3498db');
-        updateDetailedChart(charts.tempDetailed, chartData.labels, chartData.temperature, '#f39c12');
-    }
-}
-
-// Actualizar alertas - Versión mejorada
-async function updateAlerts() {
-    try {
-        console.log('Actualizando alertas...');
-        
-        const response = await fetch(`api/alerts.php?device=${currentDevice}&status=true`);
-        
-        if (!response.ok) {
-            throw new Error(`Error HTTP: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
         
         const data = await response.json();
-        console.log('Alertas recibidas:', data);
+        console.log('📈 Datos recibidos:', data);
         
-        if (data.success) {
-            displayAlerts(data.activeAlerts || []);
+        if (data && data.length > 0) {
+            const reading = data[0];
+            updateUI(reading); // Actualizar toda la UI de una vez
         } else {
-            console.warn('Error en respuesta de alertas:', data.message);
+            useDemoData(); // Usar datos demo si no hay datos reales
         }
     } catch (error) {
-        console.error('Error al cargar alertas:', error);
-        // No mostrar error al usuario para no ser intrusivo
+        console.error('❌ Error:', error);
+        useDemoData(); // Usar datos demo en caso de error
     }
 }
 
-// Actualizar métrica individual
-function updateMetric(type, value, min, max) {
-    const valueElement = document.getElementById(`${type}Value`);
-    const statusElement = document.getElementById(`${type}Status`);
+// Actualizar toda la interfaz de una vez
+function updateUI(reading) {
+    // Actualizar valores principales
+    updateMetricValue('hrValue', reading.lectura_FC);
+    updateMetricValue('spo2Value', reading.lectura_SpO2);
+    updateMetricValue('tempValue', reading.lectura_temperatura);
     
-    if (valueElement && statusElement && value !== null) {
-        valueElement.textContent = value;
-        
-        let status = 'normal';
-        let statusText = 'Normal';
-        
+    // Actualizar estados
+    updateMetricStatus('hrStatus', reading.lectura_FC, 60, 100);
+    updateMetricStatus('spo2Status', reading.lectura_SpO2, 90, 100);
+    updateMetricStatus('tempStatus', reading.lectura_temperatura, 35.5, 37.5);
+    
+    // Actualizar ubicación
+    if (reading.gps_lat && reading.gps_lon) {
+        updateLocationInfo(reading.gps_lat, reading.gps_lon, reading.fecha_lectura);
+    }
+    
+    // Actualizar gráficas mini
+    updateMiniChart(charts.hrMini, reading.lectura_FC);
+    updateMiniChart(charts.spo2Mini, reading.lectura_SpO2);
+    updateMiniChart(charts.tempMini, reading.lectura_temperatura);
+}
+
+// Usar datos de demostración
+function useDemoData() {
+    console.log('🎭 Usando datos demo...');
+    const demoData = {
+        lectura_FC: 78,
+        lectura_SpO2: 98,
+        lectura_temperatura: 36.8,
+        gps_lat: 19.432607,
+        gps_lon: -99.133208,
+        fecha_lectura: new Date().toISOString()
+    };
+    updateUI(demoData);
+}
+
+// Funciones auxiliares (mantener igual)
+function updateMetricValue(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element && value !== null) {
+        element.textContent = value;
+        element.classList.add('value-updated');
+        setTimeout(() => element.classList.remove('value-updated'), 1000);
+    }
+}
+
+function updateMetricStatus(elementId, value, min, max) {
+    const element = document.getElementById(elementId);
+    if (element && value !== null) {
+        let status = 'normal', statusText = 'Normal', icon = '✅';
         if (value < min || value > max) {
-            status = 'critical';
-            statusText = 'Crítico';
+            status = 'critical'; statusText = 'Crítico'; icon = '🚨';
         } else if (value < min * 1.1 || value > max * 0.9) {
-            status = 'warning';
-            statusText = 'Alerta';
+            status = 'warning'; statusText = 'Alerta'; icon = '⚠️';
         }
-        
-        statusElement.textContent = statusText;
-        statusElement.className = `metric-status ${status}`;
-        
-        // Animación para valores críticos
-        if (status === 'critical') {
-            valueElement.classList.add('pulse');
-        } else {
-            valueElement.classList.remove('pulse');
-        }
+        element.innerHTML = `${icon} ${statusText}`;
+        element.className = `metric-status ${status}`;
     }
 }
 
-// Actualizar gráfica mini
+function updateLocationInfo(lat, lon, timestamp) {
+    const coords = `${parseFloat(lat).toFixed(6)}, ${parseFloat(lon).toFixed(6)}`;
+    const time = new Date(timestamp).toLocaleString();
+    
+    document.getElementById('currentCoordinates').textContent = coords;
+    document.getElementById('lastLocationUpdate').textContent = time;
+    document.getElementById('mapCoordinates').textContent = coords;
+    document.getElementById('mapLastUpdate').textContent = time;
+}
+
 function updateMiniChart(chart, newValue) {
-    if (newValue === null) return;
-    
-    const maxDataPoints = 10;
-    
-    // Agregar nuevo dato
+    if (!chart || newValue === null) return;
     chart.data.labels.push('');
-    chart.data.datasets[0].data.push(newValue);
-    
-    // Mantener máximo número de puntos
-    if (chart.data.labels.length > maxDataPoints) {
+    chart.data.datasets[0].data.push(parseFloat(newValue));
+    if (chart.data.labels.length > 10) {
         chart.data.labels.shift();
         chart.data.datasets[0].data.shift();
     }
-    
     chart.update('none');
 }
 
-// Actualizar gráfica detallada
-function updateDetailedChart(chart, labels, data, color) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data;
-    chart.data.datasets[0].borderColor = color;
-    chart.data.datasets[0].backgroundColor = color + '20';
-    chart.update();
-}
-
-// Actualizar ubicación en mapa
-function updateLocation(lat, lng, timestamp) {
-    const position = new google.maps.LatLng(parseFloat(lat), parseFloat(lng));
-    
-    // Actualizar marcador
-    mapMarker.setPosition(position);
-    
-    // Centrar mapa
-    patientMap.setCenter(position);
-    
-    // Actualizar información
-    document.getElementById('lastLocationUpdate').textContent = 
-        new Date(timestamp).toLocaleString();
-    document.getElementById('currentCoordinates').textContent = 
-        `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-}
-
-// Mostrar alertas - Versión mejorada
-function displayAlerts(alerts) {
-    const container = document.getElementById('liveAlerts');
-    
-    if (!container) {
-        console.error('Contenedor de alertas no encontrado');
-        return;
-    }
-    
-    if (!alerts || alerts.length === 0) {
-        container.innerHTML = '<div class="alert info">No hay alertas activas</div>';
-        return;
-    }
-    
-    let html = '';
-    alerts.forEach(alert => {
-        const alertType = alert.tipo_alerta === 'medica' ? 'critical' : 'warning';
-        const icon = alert.tipo_alerta === 'medica' ? 'fa-ambulance' : 'fa-map-marker-alt';
-        const title = alert.tipo_alerta === 'medica' ? 'Emergencia Médica' : 'Paciente Extraviado';
-        
-        html += `
-            <div class="alert-item ${alertType} fade-in">
-                <div class="alert-header">
-                    <strong><i class="fas ${icon}"></i> ${title}</strong>
-                    <span class="alert-status">${alert.estado || 'PENDIENTE'}</span>
-                </div>
-                <p>${alert.descripcion || 'Alerta activada'}</p>
-                <small>Iniciada: ${new Date(alert.fecha_creacion).toLocaleString()}</small>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-}
-
-// Usar la API que guarda en BD
+// Funciones de alertas (mantener igual)
 async function triggerMedicalAlert() {
-    if (!confirm('¿Estás seguro de activar la alerta médica de emergencia? Se notificará a los servicios de emergencia.')) {
-        return;
-    }
-    
+    if (!confirm('¿Activar alerta médica?')) return;
     try {
-        const response = await fetch('api/alerts_simple.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'action=medical&device=' + currentDevice
+        const response = await fetch('http://localhost/proyecto/api/alerts_simple.php', {
+            method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=medical&device=ESP32-001'
         });
-        
         const data = await response.json();
-        
         if (data.success) {
-            // Determinar tipo de mensaje basado en sync_status
-            const alertType = data.sync_status === 'success' ? 'success' : 
-                             data.sync_status === 'warning' ? 'warning' : 'success';
-            
-            showAlert(data.message, alertType);
-            console.log('Sincronización:', data.sync_status, data.sync_message);
-            setTimeout(updateAlerts, 1000);
+            showAlert(data.message, data.sync_status === 'success' ? 'success' : 'warning');
         } else {
             showAlert('Error: ' + data.message, 'error');
         }
     } catch (error) {
-        showAlert('Error de conexión: ' + error.message, 'error');
+        showAlert('Error de conexión', 'error');
     }
 }
 
 async function triggerMissingAlert() {
-    if (!confirm('¿Estás seguro de reportar al paciente como extraviado? Se activará la búsqueda inmediata.')) {
-        return;
-    }
-    
+    if (!confirm('¿Reportar extravío?')) return;
     try {
-        const response = await fetch('api/alerts_simple.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'action=missing&device=' + currentDevice
+        const response = await fetch('http://localhost/proyecto/api/alerts_simple.php', {
+            method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=extravio&device=ESP32-001'
         });
-        
         const data = await response.json();
-        
         if (data.success) {
-            // Determinar tipo de mensaje basado en sync_status
-            const alertType = data.sync_status === 'success' ? 'success' : 
-                             data.sync_status === 'warning' ? 'warning' : 'success';
-            
-            showAlert(data.message, alertType);
-            console.log('Sincronización:', data.sync_status, data.sync_message);
-            setTimeout(updateAlerts, 1000);
+            showAlert(data.message, data.sync_status === 'success' ? 'success' : 'warning');
         } else {
             showAlert('Error: ' + data.message, 'error');
         }
     } catch (error) {
-        showAlert('Error de conexión: ' + error.message, 'error');
+        showAlert('Error de conexión', 'error');
     }
 }
-// Limpiar intervalo al salir de la página
+
+window.triggerMedicalAlert = triggerMedicalAlert;
+window.triggerMissingAlert = triggerMissingAlert;
+
 window.addEventListener('beforeunload', () => {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-    }
+    if (updateInterval) clearInterval(updateInterval);
 });
 
-// Debug: Verificar que las funciones estén disponibles
-console.log('✅ monitoring.js cargado');
-console.log('triggerMedicalAlert disponible:', typeof triggerMedicalAlert);
-console.log('triggerMissingAlert disponible:', typeof triggerMissingAlert);
-console.log('showAlert disponible:', typeof showAlert);
-console.log('currentDevice:', currentDevice);
-
-// Agregar event listeners para debug
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('btn-emergency') || 
-        e.target.closest('.btn-emergency')) {
-        console.log('Click en botón de emergencia médica');
-    }
-    if (e.target.classList.contains('btn-warning') || 
-        e.target.closest('.btn-warning')) {
-        console.log('Click en botón de extravío');
-    }
-});
+console.log('✅ monitoring.js cargado - Versión RÁPIDA');

@@ -22,37 +22,39 @@ $device = $deviceCode ? $deviceModel->getDevice($deviceCode, $_SESSION['user_id'
     <title>Monitoreo en Tiempo Real - Sistema Guardián</title>
     <link rel="stylesheet" href="assets/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</head>
-<script>
-    // Tema oscuro
-    function toggleTheme() {
-        document.body.classList.toggle('dark-theme');
-        const isDark = document.body.classList.contains('dark-theme');
-        localStorage.setItem('darkTheme', isDark);
-        
-        // Cambiar icono
-        const icon = document.querySelector('.theme-toggle i');
-        if (icon) {
-            if (isDark) {
-                icon.className = 'fas fa-sun';
-            } else {
-                icon.className = 'fas fa-moon';
+    
+    <!-- ✅ CHART.JS AGREGADO AQUÍ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // Tema oscuro
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+            const isDark = document.body.classList.contains('dark-theme');
+            localStorage.setItem('darkTheme', isDark);
+            
+            // Cambiar icono
+            const icon = document.querySelector('.theme-toggle i');
+            if (icon) {
+                if (isDark) {
+                    icon.className = 'fas fa-sun';
+                } else {
+                    icon.className = 'fas fa-moon';
+                }
             }
         }
-    }
 
-    // Cargar tema al iniciar
-    document.addEventListener('DOMContentLoaded', function() {
-        const savedTheme = localStorage.getItem('darkTheme');
-        if (savedTheme === 'true') {
-            document.body.classList.add('dark-theme');
-            const icon = document.querySelector('.theme-toggle i');
-            if (icon) icon.className = 'fas fa-sun';
-        }
-    });
-</script>
-</body>
-</html>
+        // Cargar tema al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('darkTheme');
+            if (savedTheme === 'true') {
+                document.body.classList.add('dark-theme');
+                const icon = document.querySelector('.theme-toggle i');
+                if (icon) icon.className = 'fas fa-sun';
+            }
+        });
+    </script>
+</head>
 <body>
     <div class="dashboard-container">
         <!-- Header -->
@@ -65,6 +67,7 @@ $device = $deviceCode ? $deviceModel->getDevice($deviceCode, $_SESSION['user_id'
                     </button>
                     <span>Bienvenido, <?php echo $_SESSION['user_name']; ?></span>
                     <a href="logout.php" class="btn-logout">Cerrar Sesión</a>
+                </div>
             </div>
         </header>
 

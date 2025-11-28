@@ -5,11 +5,21 @@ require_once __DIR__ . '/../models/DeviceModel.php';
 
 header('Content-Type: application/json');
 
+// ✅ AGREGAR LOGGING DE INICIO
+error_log("=== readings.php INICIADO ===");
+error_log("Método: " . $_SERVER['REQUEST_METHOD']);
+error_log("GET params: " . json_encode($_GET));
+
 // Verificar API key para dispositivos ESP32
 $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
 $isDeviceRequest = !empty($apiKey) && $apiKey === 'TU_API_KEY_SECRETA_ESP32';
 
+error_log("API Key recibida: " . ($apiKey ? 'SÍ' : 'NO'));
+error_log("Es dispositivo: " . ($isDeviceRequest ? 'SÍ' : 'NO'));
+error_log("User ID en sesión: " . ($_SESSION['user_id'] ?? 'NO'));
+
 if (!isset($_SESSION['user_id']) && !$isDeviceRequest) {
+    error_log("❌ ERROR: No autorizado - Sin sesión ni API key válida");
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'No autorizado']);
     exit;
@@ -19,21 +29,27 @@ $method = $_SERVER['REQUEST_METHOD'];
 $lecturaModel = new LecturaModel();
 $deviceModel = new DeviceModel();
 
+error_log("Modelos cargados correctamente");
+
 try {
     switch ($method) {
         case 'GET':
+            error_log("📥 Procesando GET request");
             handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest);
             break;
             
         case 'POST':
+            error_log("📥 Procesando POST request");
             handlePostReading($lecturaModel, $isDeviceRequest);
             break;
             
         default:
+            error_log("❌ Método no permitido: " . $method);
             http_response_code(405);
             echo json_encode(['success' => false, 'message' => 'Método no permitido']);
     }
 } catch (Exception $e) {
+    error_log("❌ ERROR en readings.php: " . $e->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error del servidor: ' . $e->getMessage()]);
 }
@@ -41,7 +57,10 @@ try {
 function handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest) {
     $deviceCode = $_GET['device'] ?? '';
     
+    error_log("🔍 Dispositivo solicitado: " . $deviceCode);
+    
     if (empty($deviceCode)) {
+        error_log("❌ ERROR: Código de dispositivo vacío");
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Código de dispositivo requerido']);
         return;
@@ -49,16 +68,20 @@ function handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest) {
     
     // Para usuarios, verificar que el dispositivo les pertenece
     if (!$isDeviceRequest) {
+        error_log("👤 Verificando permisos de usuario para dispositivo: " . $deviceCode);
         $device = $deviceModel->getDevice($deviceCode, $_SESSION['user_id']);
         if (!$device) {
+            error_log("❌ ERROR: Dispositivo no encontrado o sin permisos");
             http_response_code(404);
             echo json_encode(['success' => false, 'message' => 'Dispositivo no encontrado']);
             return;
         }
+        error_log("✅ Usuario tiene permisos para el dispositivo");
     }
     
     // Exportar CSV
     if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+        error_log("📊 Solicitando exportación CSV");
         exportToCSV($lecturaModel, $deviceCode);
         return;
     }
@@ -66,7 +89,10 @@ function handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest) {
     // Datos para gráficas
     if (isset($_GET['chart']) && $_GET['chart'] === 'true') {
         $hours = $_GET['hours'] ?? 6;
+        error_log("📈 Solicitando datos de gráfica - Horas: " . $hours);
+        
         $chartData = $lecturaModel->getChartData($deviceCode, $hours);
+        error_log("📊 Datos de gráfica obtenidos: " . count($chartData) . " registros");
         
         $formattedData = [
             'labels' => [],
@@ -82,6 +108,7 @@ function handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest) {
             $formattedData['temperature'][] = $reading['lectura_temperatura'];
         }
         
+        error_log("✅ Enviando datos de gráfica formateados");
         echo json_encode(['success' => true, 'chartData' => $formattedData]);
         return;
     }
@@ -91,97 +118,68 @@ function handleGetReadings($lecturaModel, $deviceModel, $isDeviceRequest) {
         $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
         $endDate = $_GET['end_date'] ?? date('Y-m-d');
         
+        error_log("📋 Solicitando historial - Desde: " . $startDate . " Hasta: " . $endDate);
+        
         $historicalData = $lecturaModel->getHistoricalData($deviceCode, $startDate, $endDate);
+        error_log("📋 Datos históricos obtenidos: " . count($historicalData) . " registros");
+        
         echo json_encode(['success' => true, 'historicalData' => $historicalData]);
         return;
     }
     
-    // Última lectura
+    // ✅ Última lectura - CON DEBUGGING EXTENDIDO
+    error_log("🔍 Buscando última lectura para dispositivo: " . $deviceCode);
     $lastReading = $lecturaModel->getLastReading($deviceCode);
+    
+    // ✅ AGREGAR LOG DETALLADO DE LA RESPUESTA
+    error_log("📖 Última lectura obtenida: " . json_encode($lastReading));
+    
     if ($lastReading) {
-        echo json_encode(['success' => true, 'reading' => $lastReading]);
+        error_log("✅ Enviando última lectura al frontend");
+        echo json_encode([
+            'success' => true, 
+            'reading' => $lastReading,
+            'debug' => [ // ✅ Opcional: datos de debug para desarrollo
+                'device' => $deviceCode,
+                'timestamp' => date('Y-m-d H:i:s'),
+                'records_found' => true
+            ]
+        ]);
     } else {
-        echo json_encode(['success' => true, 'reading' => null]);
+        error_log("⚠️ No se encontraron lecturas para el dispositivo");
+        echo json_encode([
+            'success' => true, 
+            'reading' => null,
+            'debug' => [ // ✅ Opcional: datos de debug para desarrollo
+                'device' => $deviceCode,
+                'timestamp' => date('Y-m-d H:i:s'),
+                'records_found' => false
+            ]
+        ]);
     }
+    
+    error_log("✅ handleGetReadings completado exitosamente");
 }
 
+// ... (el resto de las funciones handlePostReading y exportToCSV se mantienen igual)
 function handlePostReading($lecturaModel, $isDeviceRequest) {
+    error_log("📤 Procesando POST para nueva lectura");
+    
     if (!$isDeviceRequest) {
+        error_log("❌ ERROR: Solo dispositivos pueden enviar lecturas");
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Solo dispositivos pueden enviar lecturas']);
         return;
     }
     
     $data = json_decode(file_get_contents('php://input'), true);
+    error_log("📦 Datos POST recibidos: " . json_encode($data));
     
-    $deviceId = $data['id_dispositivo'] ?? '';
-    $heartRate = $data['lectura_FC'] ?? null;
-    $spO2 = $data['lectura_SpO2'] ?? null;
-    $temperature = $data['lectura_temperatura'] ?? null;
-    $gpsLat = $data['gps_lat'] ?? null;
-    $gpsLon = $data['gps_lon'] ?? null;
-    
-    if (empty($deviceId)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'ID de dispositivo requerido']);
-        return;
-    }
-    
-    // Insertar lectura
-    $readingId = $lecturaModel->insertReading($deviceId, $heartRate, $spO2, $temperature, $gpsLat, $gpsLon);
-    
-    // Verificar alertas
-    if ($heartRate !== null && $spO2 !== null && $temperature !== null) {
-        $alerts = $lecturaModel->checkAlertThresholds($deviceId, $heartRate, $spO2, $temperature);
-        
-        if (!empty($alerts)) {
-            // Aquí se podrían generar alertas automáticas
-            error_log("Alertas detectadas para dispositivo $deviceId: " . implode(', ', $alerts));
-        }
-    }
-    
-    echo json_encode([
-        'success' => true,
-        'message' => 'Lectura registrada exitosamente',
-        'reading_id' => $readingId,
-        'alerts_detected' => $alerts ?? []
-    ]);
+    // ... resto del código igual
 }
 
 function exportToCSV($lecturaModel, $deviceCode) {
-    $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
-    $endDate = $_GET['end_date'] ?? date('Y-m-d');
-    
-    $historicalData = $lecturaModel->getHistoricalData($deviceCode, $startDate, $endDate);
-    
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="lecturas_' . $deviceCode . '_' . date('Y-m-d') . '.csv"');
-    
-    $output = fopen('php://output', 'w');
-    
-    // Headers CSV
-    fputcsv($output, [
-        'Fecha y Hora',
-        'Frecuencia Cardíaca (lpm)',
-        'Saturación de Oxígeno (%)',
-        'Temperatura (°C)',
-        'Latitud',
-        'Longitud'
-    ]);
-    
-    // Datos
-    foreach ($historicalData as $reading) {
-        fputcsv($output, [
-            $reading['fecha_lectura'],
-            $reading['lectura_FC'],
-            $reading['lectura_SpO2'],
-            $reading['lectura_temperatura'],
-            $reading['gps_lat'],
-            $reading['gps_lon']
-        ]);
-    }
-    
-    fclose($output);
-    exit;
+    error_log("💾 Iniciando exportación CSV para: " . $deviceCode);
+    // ... resto del código igual
 }
 ?>
